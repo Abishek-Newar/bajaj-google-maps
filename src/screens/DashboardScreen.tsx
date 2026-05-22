@@ -7,10 +7,20 @@ import { Card, Pill, SectionTitle, Label } from '../components/ui';
 import ManeuverIcon from '../components/ManeuverIcon';
 import { mockRoute } from '../data/mock';
 import { NavInstruction } from '../types';
+import { NavigationBridge, isNative } from '../native/NavigationBridge';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const [route] = useState<NavInstruction[]>(mockRoute);
+  const [route, setRoute] = useState<NavInstruction[]>(mockRoute);
+
+  // On a real device, prepend live instructions parsed from Google Maps.
+  useEffect(() => {
+    if (!isNative) return;
+    const sub = NavigationBridge.onNavInstruction(p =>
+      setRoute(prev => [{ ...p }, ...prev].slice(0, 12)),
+    );
+    return () => sub?.remove();
+  }, []);
   const current = route[0];
   const upcoming = route.slice(1);
 

@@ -1,97 +1,84 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# BajajNav — Google Maps TBT bridge for the Bajaj Pulsar N160
 
-# Getting Started
+Reads Google Maps turn-by-turn navigation from the Android notification stream
+and relays it over BLE to the bike's instrument cluster, so you can navigate
+with Google Maps while turn arrows still show on the dashboard.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+> **Android only.** iOS forbids reading other apps' notifications.
 
-## Step 1: Start Metro
+## Status by phase
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+| Phase | What | State |
+|-------|------|-------|
+| 0 | RN + TS scaffold, "Pulsar" dark design system | ✅ done |
+| 1 | Full UI (Dashboard, Bluetooth, Dev Console, Snoop Guide) on mock data | ✅ done |
+| 2 | Kotlin `NotificationListenerService` → JS bridge | ✅ written, needs device |
+| 3 | Kotlin BLE foreground service (scan/connect/write) | ✅ written, needs device |
+| 4 | Real cluster protocol — gated on snoop-log diff | ⏳ placeholder bytes |
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+The JS layer auto-detects the native module: with it present (real device build)
+the screens use live data; without it (Metro on a sim, Jest) they fall back to
+mock data so the UI is always demoable.
 
-```sh
-# Using npm
-npm start
+## Build & run (Android)
 
-# OR using Yarn
-yarn start
+The Android Gradle build needs **JDK 17** (not the system default 25):
+
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+export ANDROID_HOME=$HOME/Library/Android/sdk
+
+npm install
+npx react-native run-android      # device or emulator
 ```
 
-## Step 2: Build and run your app
+On first launch, grant in this order:
+1. **Notification access** — Settings → Notification access → enable BajajNav
+   (the app deep-links here via the bridge).
+2. **Nearby devices / Bluetooth** and (Android ≤11) **Location** for BLE scan.
+3. **Notifications** permission so the foreground-service notice can show.
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+## Phase 4 — the go/no-go gate
 
-### Android
+`src/.../ClusterProtocol.kt` currently encodes a **guessed** frame
+(`AA 02 <id> <distHi> <distLo> <xor>`). Before trusting it:
 
-```sh
-# Using npm
-npm run android
+1. Follow the in-app **Snoop Guide** to capture the official app's BLE traffic.
+2. Diff the ATT-write payloads for two *identical* turn prompts.
+   - **Identical bytes** → static protocol → copy the real frame into
+     `ClusterProtocol.kt`. Project is feasible.
+   - **Different each time** → session nonce / encryption → simple replay won't
+     work; scope changes significantly.
 
-# OR using Yarn
-yarn android
+## Cluster simulator (no bike needed)
+
+`tools/ble_cluster_sim.py` advertises a mock `PULSAR-N160` GATT peripheral that
+decodes the placeholder protocol and ACKs writes:
+
+```bash
+pip install bless
+python3 tools/ble_cluster_sim.py
 ```
 
-### iOS
+Scan for it from the app's Bluetooth screen, connect, and send packets from the
+Dev Console to validate the transport end-to-end.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+## Layout
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
 ```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
+App.tsx                       app entry
+src/theme/        design tokens (colors, spacing, type)
+src/components/   Card, buttons, ManeuverIcon, TabIcon …
+src/screens/      Dashboard, Bluetooth, DeveloperConsole, SnoopGuide
+src/navigation/   bottom-tab navigator
+src/native/       typed JS wrapper around the Kotlin bridge
+src/data/mock.ts  mock data for sim/dev
+android/app/src/main/java/com/bajajnav/nav/
+    GoogleMapsNotificationListener.kt   Phase 2
+    NavParser.kt                        notification → maneuver/distance
+    BikeBluetoothService.kt             Phase 3 foreground BLE service
+    ClusterProtocol.kt                  Phase 4 frame encode/decode (placeholder)
+    NavBridge.kt                        event hub → JS
+    NavigationBridgeModule.kt / Package native module registration
+tools/ble_cluster_sim.py                mock cluster peripheral
 ```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.

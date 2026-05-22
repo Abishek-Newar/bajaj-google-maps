@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -6,6 +6,7 @@ import { colors, spacing, font, radius, gradients } from '../theme/theme';
 import { Card, SectionTitle, PrimaryButton, Label, Mono, GhostButton } from '../components/ui';
 import { mockCharacteristics, mockPacketLog } from '../data/mock';
 import { PacketLog } from '../types';
+import { NavigationBridge, isNative } from '../native/NavigationBridge';
 
 const PRESETS: Array<{ label: string; hex: string }> = [
   { label: 'Turn L', hex: 'AA 02 01 2C 01 D4' },
@@ -30,9 +31,34 @@ export default function DeveloperConsoleScreen() {
   const valid = HEX_RE.test(hex) && hex.replace(/\s/g, '').length % 2 === 0 && hex.trim().length > 0;
   const byteCount = hex.replace(/\s/g, '').length / 2;
 
+  // On a device, mirror real TX/RX traffic from the BLE service into the log.
+  useEffect(() => {
+    if (!isNative) return;
+    const sub = NavigationBridge.onPacket(p => {
+      if (!p.hex) return; // skip char-discovery notices with empty payloads
+      setLog(prev => [
+        {
+          id: `${p.timestamp}-${Math.random()}`,
+          direction: p.direction,
+          hex: p.hex,
+          charUuid: p.charUuid ?? undefined,
+          note: p.note ?? undefined,
+          timestamp: p.timestamp,
+        },
+        ...prev,
+      ].slice(0, 100));
+    });
+    return () => sub?.remove();
+  }, []);
+
   const send = () => {
     if (!valid) return;
     const normalized = hex.replace(/\s+/g, '').toUpperCase().match(/.{2}/g)?.join(' ') ?? hex;
+    if (isNative) {
+      // Native emits the authoritative log entry via onPacket.
+      NavigationBridge.writeHex(selectedChar, normalized);
+      return;
+    }
     const entry: PacketLog = {
       id: Date.now().toString(),
       direction: 'tx',

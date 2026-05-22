@@ -6,6 +6,7 @@ import { colors, spacing, font, radius, gradients } from '../theme/theme';
 import { Card, Pill, SectionTitle, PrimaryButton, Label, Mono } from '../components/ui';
 import { mockDevices } from '../data/mock';
 import { BleDevice, BleStatus } from '../types';
+import { NavigationBridge, isNative } from '../native/NavigationBridge';
 
 export default function BluetoothScreen() {
   const insets = useSafeAreaInsets();
@@ -26,8 +27,31 @@ export default function BluetoothScreen() {
   }, [status, spin]);
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
-  // Simulated scan — replaced by the native BLE bridge in Phase 3.
+  // On a real device, drive state from native BLE events (Phase 3).
+  useEffect(() => {
+    if (!isNative) return;
+    const subs = [
+      NavigationBridge.onDeviceFound(d =>
+        setDevices(prev =>
+          prev.some(p => p.id === d.id) ? prev : [...prev, { ...d, connected: false }],
+        ),
+      ),
+      NavigationBridge.onBleStatus(s => {
+        setStatus(s.status);
+        if (s.status === 'connected') setConnectedId(s.detail ?? null);
+        if (s.status === 'disconnected' || s.status === 'idle') setConnectedId(null);
+      }),
+    ];
+    return () => subs.forEach(s => s?.remove());
+  }, []);
+
   const startScan = () => {
+    if (isNative) {
+      setDevices([]);
+      NavigationBridge.startScan();
+      return;
+    }
+    // Mock simulation for sim/dev.
     setStatus('scanning');
     setDevices([]);
     mockDevices.forEach((d, i) => {
@@ -37,6 +61,10 @@ export default function BluetoothScreen() {
   };
 
   const connect = (d: BleDevice) => {
+    if (isNative) {
+      NavigationBridge.connect(d.id);
+      return;
+    }
     setStatus('connecting');
     setTimeout(() => {
       setConnectedId(d.id);
@@ -45,6 +73,7 @@ export default function BluetoothScreen() {
   };
 
   const disconnect = () => {
+    if (isNative) NavigationBridge.disconnect();
     setConnectedId(null);
     setStatus('idle');
   };
