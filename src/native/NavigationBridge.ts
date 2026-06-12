@@ -46,14 +46,27 @@ type EventMap = {
   onNotificationAccess: { active: boolean };
 };
 
-const emitter = isNative ? new NativeEventEmitter(NativeModules.NavigationBridge) : null;
+// Lazily build the emitter on first use. Doing this at module load can throw in
+// release/Hermes builds (the constructor inspects the native module), which
+// would poison the whole module's exports — so keep import side-effect-free.
+let emitter: NativeEventEmitter | null | undefined;
+function getEmitter(): NativeEventEmitter | null {
+  if (emitter !== undefined) return emitter;
+  try {
+    emitter = isNative ? new NativeEventEmitter(NativeModules.NavigationBridge) : null;
+  } catch {
+    emitter = null;
+  }
+  return emitter;
+}
 
 function on<K extends keyof EventMap>(
   event: K,
   cb: (payload: EventMap[K]) => void,
 ): EmitterSubscription | null {
-  if (!emitter) return null;
-  return emitter.addListener(event as string, cb as (p: unknown) => void);
+  const e = getEmitter();
+  if (!e) return null;
+  return e.addListener(event as string, cb as (p: unknown) => void);
 }
 
 // ---- Public API (safe no-ops when native is absent) -----------------------

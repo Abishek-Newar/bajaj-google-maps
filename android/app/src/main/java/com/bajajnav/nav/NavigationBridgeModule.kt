@@ -40,14 +40,19 @@ class NavigationBridgeModule(private val reactCtx: ReactApplicationContext) :
 
   // ---- BLE control --------------------------------------------------------
 
-  @ReactMethod fun startScan() = BikeBluetoothService.startScan(reactCtx)
-  @ReactMethod fun stopScan() = BikeBluetoothService.stopScan()
-  @ReactMethod fun connect(deviceId: String) = BikeBluetoothService.connect(reactCtx, deviceId)
-  @ReactMethod fun disconnect() = BikeBluetoothService.disconnect()
+  // Block bodies (not expression bodies) so each method's return type is Unit
+  // (= void). The TurboModule interop parser rejects a @ReactMethod that returns
+  // a non-void type unless it's marked synchronous — and one bad method makes the
+  // entire native module fail to load.
+  @ReactMethod fun startScan() { BikeBluetoothService.startScan(reactCtx) }
+  @ReactMethod fun stopScan() { BikeBluetoothService.stopScan() }
+  @ReactMethod fun connect(deviceId: String) { BikeBluetoothService.connect(reactCtx, deviceId) }
+  @ReactMethod fun disconnect() { BikeBluetoothService.disconnect() }
 
   @ReactMethod
-  fun setWriteCharacteristic(serviceUuid: String, charUuid: String) =
+  fun setWriteCharacteristic(serviceUuid: String, charUuid: String) {
     BikeBluetoothService.setWriteCharacteristic(serviceUuid, charUuid)
+  }
 
   @ReactMethod
   fun writeHex(charUuid: String?, hex: String, promise: Promise) {
